@@ -1,11 +1,28 @@
 ---
-title: "Jackson_Marsh_DataScience"
+title: "Jackson Marsh"
+image: "Documents/IMG_6357.jpeg"
+toc: false
+about: 
+  template: jolla
+  image-shape: rectangle
+  image-width: 17em
+  links:
+    - text: LinkedIn
+      href: https://www.linkedin.com/in/jackson-marsh1/
+    - text: GitHub
+      href: https://github.com/JMarsh2467
+    - text: Email
+      href: jmarsh2467@gmail
 ---
 
-This is a Quarto website.
+I am a current senior at St. Olaf College. I am majoring in Biology with a concentration in statistics and data science.
 
-To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
+## Education
 
-```{r}
-1 + 1
-```
+Austin High School: 2017-2021
+
+St. Olaf College: 2021-2025
+
+## Experience
+
+Nonin Medical Statistics Intern: 2024
