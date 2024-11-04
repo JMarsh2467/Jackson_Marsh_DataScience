@@ -1,0 +1,161 @@
+---
+title: "Mini_Project_2"
+---
+
+## Showcasing a project I did web scraping data for the lyrics of popular songs
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+#| warning: false
+#| message: false
+
+#Initializing Used Libraries 
+library(tidyverse)
+library(tidytext)
+library(polite)
+library(rvest)
+library(httr)
+library(xml2)
+library(SentimentAnalysis)
+```
+
+```{r}
+get_song_lyrics_genius <- function(song, artist){
+  #Format song into the format Genius expects
+  song_url <- song |> 
+    str_to_lower() |> 
+    str_remove_all("[^\\w|\\s]") |> 
+    str_replace_all("\\s", "-") 
+    
+  #Format artist into the format Genius expects
+  artist_url <- artist |> 
+    str_to_lower() |> 
+    str_remove_all(" featuring [\\D]+") |> 
+    str_replace_all(" ", "-") |> 
+    str_replace_all("&", "and")
+  
+  #Create full Genius url 
+  full_url <- str_c("https://genius.com/",
+                    artist_url, 
+                    "-", 
+                    song_url, 
+                    "-lyrics" 
+                    )
+  
+  #Initialize web scrapping session
+  session <- bow(full_url, force = TRUE)
+  
+    #Scrape the page
+    page <- scrape(session)
+    if(is.null(page)){
+      warning("Invalid URL Entered: ", full_url, call. = T, immediate. = T)
+      tibble(
+        song,
+        artist, 
+        lyrics = NA
+      )
+    }
+    else{
+    
+      #Change all <br> tags into spaces 
+      #(why does html_text not do this automatically!?)
+      xml_find_all(page, ".//br") |> 
+        xml_add_sibling("p", " ")
+      
+      xml_find_all(page, ".//br") |> 
+        xml_remove()
+      
+      #Extract Lyrics
+      lyrics <- html_nodes(page, ".Lyrics__Container-sc-1ynbvzw-1") |> 
+        html_text() |> 
+        str_replace_all("\\[[^\\]]+\\]", " ") |> 
+        paste(collapse = "")
+      
+      #Create Output tibble
+      tibble(
+        song, 
+        artist, 
+        lyrics
+      )
+    }
+}
+```
+
+```{r}
+get_billboard_hot_100 <- function(){
+  #Initialing Webscraping Session
+  session <- bow("https://www.billboard.com/charts/hot-100/", force = TRUE)
+  
+  #Vector for placements on the Billboard Hot 100
+  placement <- (1:100)
+  
+  #Getting song titles from Billboard Hot 100
+  song_title <- scrape(session) |> 
+    html_nodes("li.o-chart-results-list__item > h3#title-of-a-story") |>
+    html_text() |> 
+    str_trim() #Removing white space from html_text
+  
+  #Getting artist from Billboard Hot 100
+  artist <- scrape(session) |> 
+    html_nodes("li.o-chart-results-list__item > span.c-label.a-no-trucate") |> 
+    html_text() |> 
+    str_trim() #Removing white space from html_text
+  
+  #Getting how many weeks a song has been on the Billboard Hot 100
+  weeks_on_chart <- scrape(session) |> 
+    html_nodes("ul.lrv-a-unstyle-list.lrv-u-flex.lrv-u-height-100p li:nth-child(6) > span.c-label") |> 
+    html_text() |> 
+    str_trim() #Removing white space from html_text
+  
+  #Getting the Week that this chart is describing 
+  week_of_chart <- scrape(session) |>
+    html_nodes("p.c-tagline.a-font-primary-medium-xs") |> 
+    html_text() |> 
+    str_extract("Week of (\\D+ \\d+, \\d{4})", 1) |> #RegEx to extract the week
+    mdy()
+  
+  #Combining into one tibble
+  tibble(
+    placement, 
+    song_title,
+    artist, 
+    weeks_on_chart,
+    week_of_chart,
+  )
+}
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+top_100 <- get_billboard_hot_100()
+
+top_100_lyrics <- map2(top_100$song_title[1:25],
+                       top_100$artist[1:25],
+                       \(x, y) get_song_lyrics_genius(x, y)
+                       ) |> 
+  bind_rows()
+  
+
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+Top_100_Wordcount <- SentimentAnalysis::analyzeSentiment(top_100_lyrics$lyrics) %>% select("WordCount")
+Top_100_Sentiment <- SentimentAnalysis::analyzeSentiment(top_100_lyrics$lyrics) %>% select("SentimentGI")
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+top_100_lyrics$WordCount <- Top_100_Wordcount
+top_100_lyrics$SentimentGI <- Top_100_Sentiment
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+print(top_100_lyrics)
+```

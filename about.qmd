@@ -1,9 +1,140 @@
 ---
-title: "About"
+title: "Mini_Project_1"
 ---
 
-About this site
+## Showcasing a project I did making interactive maps
 
 ```{r}
-1 + 1
+#| code-fold: true
+#| code-summary: "Show the code"
+library(tidyverse) #Load in packages 
+library(mdsr)
+library(viridis)
+library(lubridate)
+library(statebins)
+library(leaflet)
+library(sf)
+library(htmltools)
+library(glue)
+library(maps)
+us_states <- map_data("state") #Load in data for the geometry of states
+head(us_states)
+X1_self_reported <- read_csv("https://www.cdc.gov/physical-activity/files/1-self-reported.csv")
+#Load in data
+Popular_Sports_Sheet1 <- read_csv("https://raw.githubusercontent.com/JMarsh2467/SDS264_2024/refs/heads/main/Popular%20Sports%20-%20Sheet1.csv?token=GHSAT0AAAAAACZ5N4TKHY6EMPQF4MYQLJAIZZIGLFQ")
+Active_Data <- X1_self_reported %>% filter(State != "District of Columbia", State != "Puerto Rico", State != "Guam") #Removes areas that are not states
+
+Active_Data$State <- tolower(Active_Data$State) #Changes format to be able to join
+Active_Data$Prevalence <- na_if(Active_Data$Prevalence, "Insufficient data**")
+
+Full_Active_Data <- Active_Data %>%
+  right_join(us_states, by = c("State" = "region")) #Join togther activity data and states geometry
+
+Full_Active_Data$Prevalence <- as.numeric(Full_Active_Data$Prevalence) #Change formating 
+states <- read_sf("https://rstudio.github.io/leaflet/json/us-states.geojson")
+class(states) #Read in additional state geometry
+states
+states$name <- tolower(states$name) #changes formating to help join later 
+statesactive <- states %>% right_join(Active_Data, by = c("name" = "State")) #joins togther state geometry with activity data 
+statesactive$Prevalence <- as.numeric(statesactive$Prevalence) #changes prevalence to a numeric variable
+state_plotting_sf <- statesactive |>
+  mutate(Prev_intervals = cut(Prevalence, n = 6,
+          breaks = c(15, 18, 21, 24, 27, 30, Inf))) |> #Makes intervals fo the plot
+  filter(!(name %in% c("Alaska", "Hawaii", "Puerto Rico"))) #removes areas that are not states
+
+ggplot(data = state_plotting_sf) + #makes plot
+  geom_sf(aes(fill = Prev_intervals), colour = "white", linetype = 2) +
+  theme_void() +  
+  scale_fill_brewer(palette = "YlGnBu")
+bins <- c(15, 18, 21, 24, 27, 30, Inf) #adds bins for the plot 
+pal <- colorBin("YlGnBu", domain = states$Prevalence, bins = bins) 
+
+statesactive <- statesactive |>
+  mutate(labels = str_c(name, ": ", Prevalence, "% of residents inactive")) #creates labeles for plot 
+
+labels <- lapply(statesactive $labels, HTML)
+
+```
+
+## Map showcasing the activity levels of states
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+leaflet(statesactive) %>%
+  setView(-96, 37.8, 4) %>%
+  addTiles() %>%
+  addPolygons(
+    fillColor = ~pal(Prevalence), #Tells how we will color the plot 
+    weight = 2,
+    opacity = 1,
+    color = "white",
+    dashArray = "3",
+    fillOpacity = 0.7,
+    highlightOptions = highlightOptions(
+      weight = 5,
+      color = "#666",
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE),
+    label = labels,
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "15px",
+      direction = "auto")) %>%
+  addLegend(pal = pal, values = ~density, opacity = 0.7, title = NULL,
+    position = "bottomright")
+```
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+Popular_Sports <- Popular_Sports_Sheet1
+
+Popular_Sports$State <- tolower(Popular_Sports$State) #change formating
+
+Full_Popular_Sports <- Popular_Sports %>%
+  right_join(us_states, by = c("State" = "region")) #joining sport data with geometry 
+statessports <- states %>% right_join(Popular_Sports, by = c("name" = "State")) #joining data 
+state_plotting_sf <- statessports |>
+  filter(!(name %in% c("Alaska", "Hawaii", "Puerto Rico"))) #removes non-states
+
+ggplot(data = state_plotting_sf) + 
+  geom_sf(aes(fill = Sport), colour = "white", linetype = 2) + 
+  theme_void() +  
+  scale_fill_brewer(palette = "Set3")
+pal <- colorFactor("Set2", states$Prevalence)
+
+statessports <- statessports |>
+  mutate(labels = str_c(name, ": ", Sport)) #sets labels 
+
+labels <- lapply(statessports$labels, HTML)
+```
+
+## Map showcasing the most watched sport in each state
+
+```{r}
+#| code-fold: true
+#| code-summary: "Show the code"
+leaflet(statessports) %>%
+  setView(-96, 37.8, 4) %>%
+  addTiles() %>%
+  addPolygons(
+    fillColor = ~pal(statessports$Sport), #Tells how we will color plot
+    weight = 2,
+    opacity = 1,
+    color = "white",
+    dashArray = "3",
+    fillOpacity = 0.7,
+    highlightOptions = highlightOptions(
+      weight = 5,
+      color = "#666",
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE),
+    label = labels,
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "15px",
+      direction = "auto"))
 ```
