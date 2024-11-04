@@ -3,7 +3,7 @@ project:
   output-dir: docs
 
 website:
-  title: "Jackson_Marsh_DataScience"
+  title: "Jackson_Marsh"
   navbar:
     left:
       - href: index.qmd
