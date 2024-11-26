@@ -1,161 +1,106 @@
 ---
-title: "Mini_Project_2"
+title: "Mini_Project_4"
 ---
 
-## Showcasing a project I did web scraping data for the lyrics of popular songs
-
+## Jeopardy Questions
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-#| warning: false
-#| message: false
-
-#Initializing Used Libraries 
-library(tidyverse)
+library(jsonlite)
+library(tidyverse) 
 library(tidytext)
-library(polite)
-library(rvest)
-library(httr)
-library(xml2)
-library(SentimentAnalysis)
+library(textdata)
+library(wordcloud)
+library(viridis)
+library(ggthemes)
+library(gutenbergr)
+jeopardy_data <- fromJSON("~/Downloads/JEOPARDY_QUESTIONS1.json", flatten = TRUE)
 ```
 
 ```{r}
-get_song_lyrics_genius <- function(song, artist){
-  #Format song into the format Genius expects
-  song_url <- song |> 
-    str_to_lower() |> 
-    str_remove_all("[^\\w|\\s]") |> 
-    str_replace_all("\\s", "-") 
-    
-  #Format artist into the format Genius expects
-  artist_url <- artist |> 
-    str_to_lower() |> 
-    str_remove_all(" featuring [\\D]+") |> 
-    str_replace_all(" ", "-") |> 
-    str_replace_all("&", "and")
-  
-  #Create full Genius url 
-  full_url <- str_c("https://genius.com/",
-                    artist_url, 
-                    "-", 
-                    song_url, 
-                    "-lyrics" 
-                    )
-  
-  #Initialize web scrapping session
-  session <- bow(full_url, force = TRUE)
-  
-    #Scrape the page
-    page <- scrape(session)
-    if(is.null(page)){
-      warning("Invalid URL Entered: ", full_url, call. = T, immediate. = T)
-      tibble(
-        song,
-        artist, 
-        lyrics = NA
-      )
-    }
-    else{
-    
-      #Change all <br> tags into spaces 
-      #(why does html_text not do this automatically!?)
-      xml_find_all(page, ".//br") |> 
-        xml_add_sibling("p", " ")
-      
-      xml_find_all(page, ".//br") |> 
-        xml_remove()
-      
-      #Extract Lyrics
-      lyrics <- html_nodes(page, ".Lyrics__Container-sc-1ynbvzw-1") |> 
-        html_text() |> 
-        str_replace_all("\\[[^\\]]+\\]", " ") |> 
-        paste(collapse = "")
-      
-      #Create Output tibble
-      tibble(
-        song, 
-        artist, 
-        lyrics
-      )
-    }
+jeopardy_data %>%
+    mutate(questionlength = str_count(question)) %>% #Element
+  group_by(value) %>%
+  mutate(mean_question_lenngth = mean(questionlength)) %>% #Element
+  filter(value == "$200" | value == "$400" | value == "$600" |value == "$800" |value == "$1000") %>% #Element
+slice_head(n = 1) %>%
+  select(value, mean_question_lenngth) %>%
+  ggplot(aes(x = reorder(value, mean_question_lenngth), y = mean_question_lenngth, fill = value)) +
+    geom_col() + 
+  theme_bw() + 
+  labs(title = "Average character length of each common jeopardy value", x = "Value", y = "Average Question Length in characters")
+```
+
+This first plot shows us an interesting trend amongst the most common jeopardy question values. The higher the value, the more characters the question contains
+
+```{r}
+getyear <- function(year){
+year <- paste("19", year, "[1-9]", sep = "")
+length(str_subset(jeopardy_data$question, year)) #Element
 }
 ```
 
 ```{r}
-get_billboard_hot_100 <- function(){
-  #Initialing Webscraping Session
-  session <- bow("https://www.billboard.com/charts/hot-100/", force = TRUE)
-  
-  #Vector for placements on the Billboard Hot 100
-  placement <- (1:100)
-  
-  #Getting song titles from Billboard Hot 100
-  song_title <- scrape(session) |> 
-    html_nodes("li.o-chart-results-list__item > h3#title-of-a-story") |>
-    html_text() |> 
-    str_trim() #Removing white space from html_text
-  
-  #Getting artist from Billboard Hot 100
-  artist <- scrape(session) |> 
-    html_nodes("li.o-chart-results-list__item > span.c-label.a-no-trucate") |> 
-    html_text() |> 
-    str_trim() #Removing white space from html_text
-  
-  #Getting how many weeks a song has been on the Billboard Hot 100
-  weeks_on_chart <- scrape(session) |> 
-    html_nodes("ul.lrv-a-unstyle-list.lrv-u-flex.lrv-u-height-100p li:nth-child(6) > span.c-label") |> 
-    html_text() |> 
-    str_trim() #Removing white space from html_text
-  
-  #Getting the Week that this chart is describing 
-  week_of_chart <- scrape(session) |>
-    html_nodes("p.c-tagline.a-font-primary-medium-xs") |> 
-    html_text() |> 
-    str_extract("Week of (\\D+ \\d+, \\d{4})", 1) |> #RegEx to extract the week
-    mdy()
-  
-  #Combining into one tibble
-  tibble(
-    placement, 
-    song_title,
-    artist, 
-    weeks_on_chart,
-    week_of_chart,
-  )
-}
+yearcount <- lapply(c(0:9), getyear)
+yearcount <- unlist(yearcount)
+years <- c("1900", "1910", "1920", "1930", "1940", "1950", "1960", "1970", "1980", "1990")
+tibble(years, yearcount) %>%
+  ggplot(aes(x = years, y = yearcount, color = years)) + 
+  geom_point() +
+  theme_bw() +
+  labs(title = "How many times was each decade in the 1900s mentioned in jeopardy questions", x = "year", y = "count")
+```
+
+This plot shows us a map of how much each decade in the 1900s is mentioned in jeopardy questions. It very interesting to see an almost exponentially increasing of the mentions as the decades get later
+
+```{r}
+Who <- length(str_subset(jeopardy_data$question, "who")) #Element
+What <- length(str_subset(jeopardy_data$question, "what")) #Element
+Where <- length(str_subset(jeopardy_data$question, "where")) #Element
+When <- length(str_subset(jeopardy_data$question, "when")) #Element
+Why <- length(str_subset(jeopardy_data$question, "why")) #Element
+How <- length(str_subset(jeopardy_data$question, "how")) #Element
 ```
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-top_100 <- get_billboard_hot_100()
-
-top_100_lyrics <- map2(top_100$song_title[1:25],
-                       top_100$artist[1:25],
-                       \(x, y) get_song_lyrics_genius(x, y)
-                       ) |> 
-  bind_rows()
-  
-
+tibble(c("Who", "What", "Where", "When", "Why", "How"), c(Who, What, Where, When, Why, How)) %>%
+  rename(Phrase = `c("Who", "What", "Where", "When", "Why", "How")`, 
+         Num_Mentions = `c(Who, What, Where, When, Why, How)`)
 ```
+
+In order to ask a question you might have to use a common question word (Who, What, Where, When, Why, How). Here is how much those 6 words are used
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-Top_100_Wordcount <- SentimentAnalysis::analyzeSentiment(top_100_lyrics$lyrics) %>% select("WordCount")
-Top_100_Sentiment <- SentimentAnalysis::analyzeSentiment(top_100_lyrics$lyrics) %>% select("SentimentGI")
+tidy_ngram <- jeopardy_data |>
+  unnest_tokens(bigram, question, token = "ngrams", n = 2) |> #Element
+  filter(bigram != "NA")
+
+all_rows <- tidy_ngram |>
+  count(bigram, sort = TRUE)
+
+bad_rows <- tidy_ngram |>
+  count(bigram, sort = TRUE) %>% slice(5:10) #Element
+
+all_rows %>% anti_join(bad_rows) %>% #Element
+  filter(bigram != "jpg target") %>% 
+  slice_head(n = 15) %>%
+  ggplot(aes(x = bigram, y = n)) + 
+  geom_col() +
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(title = "Most common two word phrases in jeopardy questions", x = "Phrase", y = "Frequency")
+
 ```
 
-```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-top_100_lyrics$WordCount <- Top_100_Wordcount
-top_100_lyrics$SentimentGI <- Top_100_Sentiment
-```
+Similar to above, We again wanted to look at word counts. Now we have the most common two word phrases
 
 ```{r}
-#| code-fold: true
-#| code-summary: "Show the code"
-print(top_100_lyrics)
+bing_sentiments <- get_sentiments(lexicon = "bing") #Element
+tidy_questions <- jeopardy_data |>
+  mutate(line = row_number()) |>
+  unnest_tokens(word, question, token = "words") #Element
+
+tidy_questions |>   
+  inner_join(bing_sentiments) |> 
+  count(sentiment)
 ```
+
+Lastly we wanted to see if out of all these words we are looking at, do we have an overall positiv e or negative sentiment. Here with the totals we can see there are more positive words. A good way to put a positive note on the end of this project!
