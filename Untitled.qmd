@@ -1,0 +1,105 @@
+---
+title: "Mini_Project_4"
+---
+
+```{r}
+library(jsonlite)
+library(tidyverse) 
+library(tidytext)
+library(textdata)
+library(wordcloud)
+library(viridis)
+library(ggthemes)
+library(gutenbergr)
+jeopardy_data <- fromJSON("~/Downloads/JEOPARDY_QUESTIONS1.json", flatten = TRUE)
+```
+
+```{r}
+jeopardy_data %>%
+    mutate(questionlength = str_count(question)) %>% #Element
+  group_by(value) %>%
+  mutate(mean_question_lenngth = mean(questionlength)) %>% #Element
+  filter(value == "$200" | value == "$400" | value == "$600" |value == "$800" |value == "$1000") %>% #Element
+slice_head(n = 1) %>%
+  select(value, mean_question_lenngth) %>%
+  ggplot(aes(x = reorder(value, mean_question_lenngth), y = mean_question_lenngth, fill = value)) +
+    geom_col() + 
+  theme_bw() + 
+  labs(title = "Average character length of each common jeopardy value", x = "Value", y = "Average Question Length in characters")
+```
+
+This first plot shows us an interesting trend amongst the most common jeopardy question values. The higher the value, the more characters the question contains
+
+```{r}
+getyear <- function(year){
+year <- paste("19", year, "[1-9]", sep = "")
+length(str_subset(jeopardy_data$question, year)) #Element
+}
+```
+
+```{r}
+yearcount <- lapply(c(0:9), getyear)
+yearcount <- unlist(yearcount)
+years <- c("1900", "1910", "1920", "1930", "1940", "1950", "1960", "1970", "1980", "1990")
+tibble(years, yearcount) %>%
+  ggplot(aes(x = years, y = yearcount, color = years)) + 
+  geom_point() +
+  theme_bw() +
+  labs(title = "How many times was each decade in the 1900s mentioned in jeopardy questions", x = "year", y = "count")
+```
+
+This plot shows us a map of how much each decade in the 1900s is mentioned in jeopardy questions. It very interesting to see an almost exponentially increasing of the mentions as the decades get later
+
+```{r}
+Who <- length(str_subset(jeopardy_data$question, "who")) #Element
+What <- length(str_subset(jeopardy_data$question, "what")) #Element
+Where <- length(str_subset(jeopardy_data$question, "where")) #Element
+When <- length(str_subset(jeopardy_data$question, "when")) #Element
+Why <- length(str_subset(jeopardy_data$question, "why")) #Element
+How <- length(str_subset(jeopardy_data$question, "how")) #Element
+```
+
+```{r}
+tibble(c("Who", "What", "Where", "When", "Why", "How"), c(Who, What, Where, When, Why, How)) %>%
+  rename(Phrase = `c("Who", "What", "Where", "When", "Why", "How")`, 
+         Num_Mentions = `c(Who, What, Where, When, Why, How)`)
+```
+
+In order to ask a question you might have to use a common question word (Who, What, Where, When, Why, How). Here is how much those 6 words are used
+
+```{r}
+tidy_ngram <- jeopardy_data |>
+  unnest_tokens(bigram, question, token = "ngrams", n = 2) |> #Element
+  filter(bigram != "NA")
+
+all_rows <- tidy_ngram |>
+  count(bigram, sort = TRUE)
+
+bad_rows <- tidy_ngram |>
+  count(bigram, sort = TRUE) %>% slice(5:10) #Element
+
+all_rows %>% anti_join(bad_rows) %>% #Element
+  filter(bigram != "jpg target") %>% 
+  slice_head(n = 15) %>%
+  ggplot(aes(x = bigram, y = n)) + 
+  geom_col() +
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(title = "Most common two word phrases in jeopardy questions", x = "Phrase", y = "Frequency")
+
+```
+
+Similar to above, We again wanted to look at word counts. Now we have the most common two word phrases
+
+```{r}
+bing_sentiments <- get_sentiments(lexicon = "bing") #Element
+tidy_questions <- jeopardy_data |>
+  mutate(line = row_number()) |>
+  unnest_tokens(word, question, token = "words") #Element
+
+tidy_questions |>   
+  inner_join(bing_sentiments) |> 
+  count(sentiment)
+```
+
+Lastly we wanted to see if out of all these words we are looking at, do we have an overall positiv e or negative sentiment. Here with the totals we can see there are more positive words. A good way to put a positive note on the end of this project!
